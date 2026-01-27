@@ -1,0 +1,38 @@
+services:
+  php:
+    image: <your_local_image_here>
+    restart: always
+    hostname: <hastname>
+    ports:
+      - "443:443"
+    volumes:
+      - ./site:/var/www/<domain_name>
+    depends_on:
+      - db
+    environment:
+      - DOMAIN_NAME=<domain_name>
+# Arch linux user
+      - APACHE_RUN_USER=#1001
+      - APACHE_RUN_GROUP=#985
+
+  db:
+    image: <your_local_image_here>
+    restart: always
+    environment:
+      - MARIADB_ROOT_PASSWORD=<root_pass>
+      - MARIADB_DATABASE=<db_name>
+      - MARIADB_USER=<db_user>
+      - MARIADB_PASSWORD=<db_pass>
+    volumes:
+      - ./backups/databases/mysql:/mysql_dumps
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    restart: always
+    environment:
+      - PMA_HOST=db
+      - PMA_PORT=3306
+    ports:
+      - "8080:80"
+    depends_on:
+      - db
