@@ -2,7 +2,7 @@ services:
   php:
     image: <your_local_image_here>
     restart: always
-    hostname: <hastname>
+    hostname: <hostname>
     ports:
       - "443:443"
     volumes:
