@@ -16,6 +16,7 @@ RUN set -ex; \
     \
     apt-get update; \
     apt-get install -y --no-install-recommends \
+        ssl-cert \
         libavif-dev \
         libfreetype6-dev \
         libicu-dev \
@@ -38,11 +39,15 @@ RUN set -ex; \
         gd \
         intl \
         mysqli \
+        pdo_mysql \
         zip \
     ; \
 # https://pecl.php.net/package/imagick
     pecl install imagick-3.8.1; \
+# https://pecl.php.net/package/xdebug
+    pecl install xdebug; \
     docker-php-ext-enable imagick; \
+    docker-php-ext-enable xdebug; \
     rm -r /tmp/pear; \
     \
 # some misbehaving extensions end up outputting to stdout 🙈 (https://github.com/docker-library/wordpress/issues/669#issuecomment-993945967)
@@ -87,19 +92,32 @@ RUN set -eux; \
     { \
 # https://www.php.net/manual/en/errorfunc.constants.php
 # https://github.com/docker-library/wordpress/issues/420#issuecomment-517839670
-        echo 'error_reporting = E_ERROR | E_WARNING | E_PARSE | E_CORE_ERROR | E_CORE_WARNING | E_COMPILE_ERROR | E_COMPILE_WARNING | E_RECOVERABLE_ERROR'; \
-        echo 'display_errors = Off'; \
+        echo 'error_reporting = E_ALL'; \
+        echo 'display_errors = On'; \
         echo 'display_startup_errors = Off'; \
         echo 'log_errors = On'; \
         echo 'error_log = /dev/stderr'; \
         echo 'log_errors_max_len = 1024'; \
-        echo 'ignore_repeated_errors = On'; \
+        echo 'ignore_repeated_errors = Off'; \
         echo 'ignore_repeated_source = Off'; \
-        echo 'html_errors = Off'; \
+        echo 'report_memleaks = On'; \
+        echo ';html_errors = Off'; \
     } > "$PHP_INI_DIR/conf.d/error-logging.ini"
 
+# Configure Xdebug (optional but recommended)
 RUN set -eux; \
-    a2enmod rewrite expires; \
+    { \
+        echo 'xdebug.mode = debug,develop'; \
+        echo 'xdebug.discover_client_host = yes'; \
+        echo 'xdebug.client_host = host.docker.internal'; \
+        echo 'xdebug.client_port = 9003'; \
+        echo 'xdebug.start_with_request = yes'; \
+        echo 'xdebug.idekey = VSCODE'; \
+        echo 'xdebug.max_nesting_level = 512'; \
+    } >> "$PHP_INI_DIR/conf.d/docker-php-ext-xdebug.ini"
+
+RUN set -eux; \
+    a2enmod rewrite expires ssl; \
     \
 # https://httpd.apache.org/docs/2.4/mod/mod_remoteip.html
     a2enmod remoteip; \
@@ -118,49 +136,17 @@ RUN set -eux; \
     find /etc/apache2 -type f -name '*.conf' -exec sed -ri 's/([[:space:]]*LogFormat[[:space:]]+"[^"]*)%h([^"]*")/\1%a\2/g' '{}' +
 
 RUN set -eux; \
-    version='6.9'; \
-    sha1='256dda5bb6a43aecd806b7a62528f442c06e6c25'; \
-    \
-    curl -o wordpress.tar.gz -fL "https://wordpress.org/wordpress-$version.tar.gz"; \
-    echo "$sha1 *wordpress.tar.gz" | sha1sum -c -; \
-    \
-# upstream tarballs include ./wordpress/ so this gives us /usr/src/wordpress
-    tar -xzf wordpress.tar.gz -C /usr/src/; \
-    rm wordpress.tar.gz; \
-    \
-# https://wordpress.org/support/article/htaccess/
-    [ ! -e /usr/src/wordpress/.htaccess ]; \
-    { \
-        echo '# BEGIN WordPress'; \
-        echo ''; \
-        echo 'RewriteEngine On'; \
-        echo 'RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]'; \
-        echo 'RewriteBase /'; \
-        echo 'RewriteRule ^index\.php$ - [L]'; \
-        echo 'RewriteCond %{REQUEST_FILENAME} !-f'; \
-        echo 'RewriteCond %{REQUEST_FILENAME} !-d'; \
-        echo 'RewriteRule . /index.php [L]'; \
-        echo ''; \
-        echo '# END WordPress'; \
-    } > /usr/src/wordpress/.htaccess; \
-    \
-    chown -R www-data:www-data /usr/src/wordpress; \
-# pre-create wp-content (and single-level children) for folks who want to bind-mount themes, etc so permissions are pre-created properly instead of root:root
-# wp-content/cache: https://github.com/docker-library/wordpress/issues/534#issuecomment-705733507
-    mkdir wp-content; \
-    for dir in /usr/src/wordpress/wp-content/*/ cache; do \
-        dir="$(basename "${dir%/}")"; \
-        mkdir "wp-content/$dir"; \
-    done; \
-    chown -R www-data:www-data wp-content; \
-    chmod -R 1777 wp-content
+    ls /etc/apache2/sites-enabled/ \
+    | xargs -I {} a2dissite {} \
+    && service apache2 restart
 
-VOLUME /var/www/html
-
-COPY --chown=www-data:www-data wp-config-docker.php /usr/src/wordpress/
-COPY docker-entrypoint.sh /usr/local/bin/
+COPY --chmod=744  ./bash_scripts/docker-entrypoint.sh /usr/local/bin/
 # https://github.com/docker-library/wordpress/issues/969
 RUN ln -svfT docker-entrypoint.sh /usr/local/bin/docker-ensure-installed.sh
 
+# Expose port 443
+EXPOSE 443
+
 ENTRYPOINT ["docker-entrypoint.sh"]
+
 CMD ["apache2-foreground"]
