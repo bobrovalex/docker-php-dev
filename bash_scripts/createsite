@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+
+domain=$1
+
+if [[ -z "${domain}" ]]; then
+    echo "Must be 1 argument"
+    exit
+fi
+
+# if [[ $EUID -ne 0 ]]; then
+#    echo "This script must be run as root" 
+#    exit
+# fi
+
+file_name="${domain}.conf"
+sites_available="/etc/apache2/sites-available/"
+sites_enabled="/etc/apache2/sites-enabled/"
+root_dir="/var/www"
+
+enable_site() {
+    a2ensite "${domain}"
+    if (( 0 == $? )); then
+        echo "site enabled..."
+        exit
+    fi
+
+    echo "Site not enabled, check config or settings"
+}
+
+create_conf() {
+    touch "${sites_available}${file_name}"
+
+    if (( 0 == $? )); then
+        {
+            echo "<VirtualHost *:443>"
+            echo "    ServerName ${domain}"
+            echo "    ServerAlias www.${domain}"
+            echo "    DocumentRoot /var/www/${domain}/public"
+            echo ""
+            echo "    SSLEngine on"
+            echo "    SSLCertificateFile /etc/ssl/certs/${domain}.crt"
+            echo "    SSLCertificateKeyFile /etc/ssl/private/${domain}.key"
+            echo ""
+            echo "    <Directory /var/www/${domain}/public>"
+            echo "        Options Indexes FollowSymLinks"
+            echo "        AllowOverride All"
+            echo "        Require all granted"
+            echo "    </Directory>"
+            echo ""
+            echo "    <Directory /var/www/${domain}>"
+            echo "        AllowOverride None"
+            echo "        Require all denied"
+            echo "    </Directory>"
+            echo ""
+            echo "    ErrorLog \${APACHE_LOG_DIR}/${domain}_error.log"
+            echo "    CustomLog \${APACHE_LOG_DIR}/${domain}_access.log combined"
+            echo "</VirtualHost>"
+        } > "${sites_available}${file_name}"
+    else
+        echo "conf file not created, check permissions"
+        exit
+    fi
+}
+
+if [[ -e "${sites_available}${file_name}" ]]; then
+    echo "Domain ${sites_available}${file_name} file already exist..."
+
+    if [[ -e "${sites_enabled}${file_name}" ]]; then
+        echo "Domain ${domain} already enabled..."
+        exit
+    fi
+
+    enable_site
+elif [[ ! -e "${sites_available}${file_name}" && ! -e "${sites_enabled}${file_name}" ]]; then
+    echo "Creating ${domain} conf file..."
+
+    create_conf
+    enable_site
+
+    echo "done..."
+fi

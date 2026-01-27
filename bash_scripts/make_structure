@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+
+domain=$1
+
+if [[ -z "${domain}" ]]; then
+    echo "Must be 1 argument"
+    exit
+fi
+
+root_dir="/var/www"
+folders=("public")
+
+main() {
+    for val in "${folders[@]}"; do
+        mkdir -p "${root_dir}/${domain}/${val}"
+        if (( 0 != $? )); then
+            echo "folder not created... exiting"
+            exit
+        fi
+    done
+}
+
+main

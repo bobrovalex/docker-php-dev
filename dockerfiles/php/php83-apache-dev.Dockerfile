@@ -139,6 +139,10 @@ RUN set -eux; \
     ls /etc/apache2/sites-enabled/ \
     | xargs -I {} a2dissite {} \
     && service apache2 restart
+   
+COPY --chmod=744 ./bash_scripts/createsite /usr/local/bin/
+COPY --chmod=744 ./bash_scripts/make_structure /usr/local/bin/
+COPY --from=composer/composer:latest /usr/bin/composer /usr/bin/composer
 
 COPY --chmod=744  ./bash_scripts/docker-entrypoint.sh /usr/local/bin/
 # https://github.com/docker-library/wordpress/issues/969
