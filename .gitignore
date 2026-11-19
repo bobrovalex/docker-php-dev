@@ -1,2 +1,3 @@
 docker-compose.yml
 site/*
+backups/databases/mysql/*.sql

@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+
+if [[ 0 -eq $# ]]; then
+    echo "Must be at least 1 argument"
+    echo "USAGE: ${0} database_name [,database_name ,...]"
+    
+    exit
+fi
+
+declare -a list
+list+=("$@")
+now=$(date +"%Y-%m-%d")
+script_name=$(basename $0)
+backup_folder="/mysql_dumps"
+mysql_folder="/var/lib/mysql"
+
+info() {
+    echo -e "\033[36m$script_name: $1\033[0m"
+}
+
+fail() {
+    echo -e "\033[31m$script_name: $1\033[0m"
+}
+
+not_exist() {
+    if [[ -e "${mysql_folder}/${1}" && -d "${mysql_folder}/${1}" ]]; then
+        return 1
+    else
+        return 0
+    fi
+}
+
+main() {
+    for val in "${list[@]}"; do
+        if not_exist $val; then
+            info "database ${val} not found"
+            continue
+        fi
+        mariadb-dump --password=${MARIADB_ROOT_PASSWORD} $val > "${backup_folder}/${val}_${now}.sql"
+        if (( 0 != $? )); then
+            fail "backup for database ${val} not fully created..."
+        else
+            chown ${HOST_USER}:${HOST_GROUP} "${backup_folder}/${val}_${now}.sql"
+        fi
+    done
+}
+
+main
