@@ -27,8 +27,8 @@ if [[ "${1-}" == apache2* ]] || [ "${1-}" = 'php-fpm' ] || { self="$(basename "$
 
 # for Ach linux users
     if [[ -n $APACHE_RUN_GROUP ]] && [[ -n $APACHE_RUN_USER ]]; then
-        random_user=$(openssl rand -base64 80 | tr -dc 'a-z' | head -c 8)
-        random_group=$(openssl rand -base64 80 | tr -dc 'a-z' | head -c 8)
+        random_user=$(cat /dev/urandom | tr -dc 'a-z' | head -c 10)
+        random_group=$(cat /dev/urandom | tr -dc 'a-z' | head -c 10)
 
         if getent group "${group}" > /dev/null 2>&1 && ! getent passwd "${user}" > /dev/null 2>&1; then
             useradd -u "${user}" -g "${group}" -m "${random_user}"
