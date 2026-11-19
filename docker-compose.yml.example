@@ -24,6 +24,9 @@ services:
       - MARIADB_DATABASE=<db_name>
       - MARIADB_USER=<db_user>
       - MARIADB_PASSWORD=<db_pass>
+# Arch linux user
+      - HOST_USER=1001
+      - HOST_GROUP=985
     volumes:
       - ./backups/databases/mysql:/mysql_dumps
       - <mysql-volume-here>:/var/lib/mysql
